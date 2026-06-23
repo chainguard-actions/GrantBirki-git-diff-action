@@ -1,0 +1,60 @@
+name: Test git diff with actual git history
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_REF: refs/heads/main
+      GITHUB_EVENT_NAME: push
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create a test commit to ensure HEAD^1 exists
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "test-file-$(date +%s)" > test-change.txt
+          git add test-change.txt
+          git commit -m "test: add test file for git-diff-action test"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+
+      - name: Assert raw-diff is non-empty
+        env:
+          RAW_DIFF: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "raw-diff length: ${#RAW_DIFF}"
+          if [ -z "$RAW_DIFF" ]; then
+            echo "FAIL: raw-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
+
+      - name: Assert json-diff is valid JSON with files
+        env:
+          JSON_DIFF: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if [ -z "$JSON_DIFF" ]; then
+            echo "FAIL: json-diff output is empty"
+            exit 1
+          fi
+          echo "$JSON_DIFF" | python3 -m json.tool > /dev/null || { echo "FAIL: json-diff is not valid JSON"; exit 1; }
+          FILE_COUNT=$(echo "$JSON_DIFF" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d['files']))")
+          echo "file count: $FILE_COUNT"
+          if [ "$FILE_COUNT" -lt "1" ]; then
+            echo "FAIL: expected at least 1 file in json-diff, got $FILE_COUNT"
+            exit 1
+          fi
+          echo "PASS: json-diff contains $FILE_COUNT file(s)"
+
+      - name: Cleanup test file
+        if: always()
+        run: |
+          rm -f test-change.txt || true
