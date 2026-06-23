@@ -1,0 +1,64 @@
+name: Test search path filtering
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create files in different directories and commit
+        run: |
+          mkdir -p subdir-a subdir-b
+          echo "content in subdir-a" > subdir-a/file-a.txt
+          echo "content in subdir-b" > subdir-b/file-b.txt
+          git add subdir-a/file-a.txt subdir-b/file-b.txt
+          git commit -m "Add files in subdirectories"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: subdir-a
+
+      - name: Assert json-diff contains subdir-a file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "file-a.txt"; then
+            echo "PASS: file-a.txt found in json-diff"
+          else
+            echo "FAIL: file-a.txt not found in json-diff"
+            exit 1
+          fi
+
+      - name: Assert json-diff does not contain subdir-b file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "file-b.txt"; then
+            echo "FAIL: file-b.txt should not be in json-diff (outside search_path)"
+            exit 1
+          else
+            echo "PASS: file-b.txt correctly excluded from json-diff"
+          fi
+
+      - name: Assert raw-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff to be non-empty"
+            exit 1
+          fi
+          echo "PASS"

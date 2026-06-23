@@ -1,0 +1,60 @@
+name: Test basic git diff
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create a file and commit it
+        run: |
+          echo "hello world" > test-file.txt
+          git add test-file.txt
+          git commit -m "Add test file"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+
+      - name: Assert json-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff to be non-empty"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert raw-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff to be non-empty"
+            exit 1
+          fi
+          echo "PASS"
+
+      - name: Assert json-diff contains test-file.txt
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "test-file.txt"; then
+            echo "PASS: test-file.txt found in json-diff"
+          else
+            echo "FAIL: test-file.txt not found in json-diff"
+            exit 1
+          fi
