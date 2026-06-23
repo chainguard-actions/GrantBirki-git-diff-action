@@ -1,0 +1,57 @@
+name: Test basic usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create a commit to diff against
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "hello world" > /tmp/testfile.txt
+          cp /tmp/testfile.txt testfile-for-diff.txt
+          git add testfile-for-diff.txt
+          git commit -m "Add testfile-for-diff.txt"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+
+      - name: Assert json-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: json-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: json-diff is non-empty"
+
+      - name: Assert raw-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: raw-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
+
+      - name: Assert json-diff contains the added file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q "testfile-for-diff.txt"; then
+            echo "FAIL: json-diff does not mention testfile-for-diff.txt"
+            exit 1
+          fi
+          echo "PASS: json-diff contains testfile-for-diff.txt"

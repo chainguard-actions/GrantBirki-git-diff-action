@@ -1,0 +1,64 @@
+name: Test search path filtering
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create commits with files in different directories
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          mkdir -p subdir-a subdir-b
+          echo "content in subdir-a" > subdir-a/file-a.txt
+          echo "content in subdir-b" > subdir-b/file-b.txt
+          git add subdir-a/file-a.txt subdir-b/file-b.txt
+          git commit -m "Add files in subdir-a and subdir-b"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: subdir-a
+
+      - name: Assert json-diff only contains subdir-a files
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: json-diff output is empty"
+            exit 1
+          fi
+          if ! echo "$ACTUAL" | grep -q "subdir-a"; then
+            echo "FAIL: json-diff does not contain subdir-a files"
+            exit 1
+          fi
+          if echo "$ACTUAL" | grep -q "subdir-b"; then
+            echo "FAIL: json-diff contains subdir-b files which should be excluded by search_path"
+            exit 1
+          fi
+          echo "PASS: json-diff correctly filtered to subdir-a only"
+
+      - name: Assert raw-diff only contains subdir-a files
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: raw-diff output is empty"
+            exit 1
+          fi
+          if ! echo "$ACTUAL" | grep -q "subdir-a"; then
+            echo "FAIL: raw-diff does not contain subdir-a files"
+            exit 1
+          fi
+          if echo "$ACTUAL" | grep -q "subdir-b"; then
+            echo "FAIL: raw-diff contains subdir-b files which should be excluded by search_path"
+            exit 1
+          fi
+          echo "PASS: raw-diff correctly filtered to subdir-a only"
