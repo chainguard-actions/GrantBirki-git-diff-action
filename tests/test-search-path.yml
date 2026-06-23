@@ -1,0 +1,59 @@
+name: Test search_path limits diff scope
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git identity
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create initial files in two directories
+        run: |
+          mkdir -p subdir_a subdir_b
+          echo "initial a" > subdir_a/file_a.txt
+          echo "initial b" > subdir_b/file_b.txt
+          git add subdir_a/file_a.txt subdir_b/file_b.txt
+          git commit -m "Add files in subdir_a and subdir_b"
+
+      - name: Modify files in both directories
+        run: |
+          echo "modified a" > subdir_a/file_a.txt
+          echo "modified b" > subdir_b/file_b.txt
+          git add subdir_a/file_a.txt subdir_b/file_b.txt
+          git commit -m "Modify files in both subdirs"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: subdir_a
+
+      - name: Assert json-diff contains subdir_a file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "file_a"; then
+            echo "PASS: json-diff contains file_a from subdir_a"
+          else
+            echo "FAIL: json-diff does not contain 'file_a'"
+            exit 1
+          fi
+
+      - name: Assert json-diff does not contain subdir_b file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "file_b"; then
+            echo "FAIL: json-diff contains file_b from subdir_b (outside search_path)"
+            exit 1
+          fi
+          echo "PASS: json-diff correctly excludes file_b from subdir_b"

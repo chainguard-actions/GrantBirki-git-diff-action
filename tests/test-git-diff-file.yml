@@ -1,0 +1,63 @@
+name: Test reading diff from a file
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create a sample diff file
+        run: |
+          cat > /tmp/sample.diff << 'EOF'
+          diff --git a/sample.txt b/sample.txt
+          index abc1234..def5678 100644
+          --- a/sample.txt
+          +++ b/sample.txt
+          @@ -1,3 +1,3 @@
+           line one
+          -line two
+          +line two modified
+           line three
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          git_diff_file: /tmp/sample.diff
+
+      - name: Assert json-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: json-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: json-diff is non-empty"
+
+      - name: Assert raw-diff is not empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: raw-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
+
+      - name: Assert json-diff contains expected filename
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "sample.txt"; then
+            echo "PASS: json-diff contains expected filename 'sample.txt'"
+          else
+            echo "FAIL: json-diff does not contain 'sample.txt'"
+            exit 1
+          fi

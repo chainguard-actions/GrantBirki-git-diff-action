@@ -1,0 +1,94 @@
+name: Test file output options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git identity
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create initial commit with a file
+        run: |
+          echo "initial content" > file_output_test.txt
+          git add file_output_test.txt
+          git commit -m "Add file for file output test"
+
+      - name: Modify file to create a diff
+        run: |
+          echo "modified content" > file_output_test.txt
+          git add file_output_test.txt
+          git commit -m "Modify file for file output test"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          json_diff_file_output: /tmp/diff-output.json
+          raw_diff_file_output: /tmp/diff-output.txt
+
+      - name: Assert json-diff-path output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          echo "actual json-diff-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: json-diff-path output is empty"
+            exit 1
+          fi
+          echo "PASS: json-diff-path is set to $ACTUAL"
+
+      - name: Assert raw-diff-path output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff-path }}
+        run: |
+          echo "actual raw-diff-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: raw-diff-path output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff-path is set to $ACTUAL"
+
+      - name: Assert JSON diff file exists and has content
+        run: |
+          if [ ! -f "/tmp/diff-output.json" ]; then
+            echo "FAIL: JSON diff file does not exist at /tmp/diff-output.json"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/diff-output.json)
+          echo "JSON diff file content: $CONTENT"
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: JSON diff file is empty"
+            exit 1
+          fi
+          echo "PASS: JSON diff file exists and has content"
+
+      - name: Assert raw diff file exists and has content
+        run: |
+          if [ ! -f "/tmp/diff-output.txt" ]; then
+            echo "FAIL: raw diff file does not exist at /tmp/diff-output.txt"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/diff-output.txt)
+          echo "Raw diff file content: $CONTENT"
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: raw diff file is empty"
+            exit 1
+          fi
+          echo "PASS: raw diff file exists and has content"
+
+      - name: Assert JSON diff file contains expected filename
+        run: |
+          if grep -q "file_output_test" /tmp/diff-output.json; then
+            echo "PASS: JSON diff file contains expected filename"
+          else
+            echo "FAIL: JSON diff file does not contain 'file_output_test'"
+            cat /tmp/diff-output.json
+            exit 1
+          fi
