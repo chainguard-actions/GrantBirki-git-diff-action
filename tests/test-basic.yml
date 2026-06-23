@@ -1,0 +1,60 @@
+name: Test basic usage with git_diff_file
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        uses: .
+        with:
+          git_diff_file: tests/fixtures/sample.diff
+
+      - name: Assert raw-diff output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is set"
+
+      - name: Assert json-diff output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: json-diff is set"
+
+      - name: Assert json-diff is valid JSON
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "Validating JSON..."
+          echo "$ACTUAL" | python3 -m json.tool > /dev/null
+          if [ $? -ne 0 ]; then
+            echo "FAIL: json-diff is not valid JSON"
+            exit 1
+          fi
+          echo "PASS: json-diff is valid JSON"
+
+      - name: Assert json-diff contains files array
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          FILES=$(echo "$ACTUAL" | python3 -c "import sys, json; d=json.load(sys.stdin); print(type(d.get('files', None)).__name__)")
+          echo "files type: $FILES"
+          if [ "$FILES" != "list" ]; then
+            echo "FAIL: expected json-diff to have a 'files' array, got '$FILES'"
+            exit 1
+          fi
+          echo "PASS: json-diff has correct structure with files array"

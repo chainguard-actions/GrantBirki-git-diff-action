@@ -1,0 +1,78 @@
+name: Test search_path filtering
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create test commits with files in different directories
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          mkdir -p tests/subdir-a tests/subdir-b
+          echo "file-in-a-$(date +%s)" > tests/subdir-a/file.txt
+          echo "file-in-b-$(date +%s)" > tests/subdir-b/file.txt
+          git add tests/subdir-a/file.txt tests/subdir-b/file.txt
+          git commit -m "test: add files in subdir-a and subdir-b"
+
+      - name: Run action with search_path limited to tests/subdir-a
+        id: action-a
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: tests/subdir-a
+
+      - name: Assert raw-diff only contains subdir-a changes
+        env:
+          ACTUAL: ${{ steps.action-a.outputs.raw-diff }}
+        run: |
+          echo "raw-diff for subdir-a: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff to be non-empty for subdir-a"
+            exit 1
+          fi
+          if ! echo "$ACTUAL" | grep -q "subdir-a"; then
+            echo "FAIL: expected raw-diff to contain 'subdir-a'"
+            exit 1
+          fi
+          if echo "$ACTUAL" | grep -q "subdir-b"; then
+            echo "FAIL: expected raw-diff NOT to contain 'subdir-b' when search_path=tests/subdir-a"
+            exit 1
+          fi
+          echo "PASS: raw-diff correctly filtered to subdir-a"
+
+      - name: Run action with search_path limited to tests/subdir-b
+        id: action-b
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: tests/subdir-b
+
+      - name: Assert raw-diff only contains subdir-b changes
+        env:
+          ACTUAL: ${{ steps.action-b.outputs.raw-diff }}
+        run: |
+          echo "raw-diff for subdir-b: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff to be non-empty for subdir-b"
+            exit 1
+          fi
+          if ! echo "$ACTUAL" | grep -q "subdir-b"; then
+            echo "FAIL: expected raw-diff to contain 'subdir-b'"
+            exit 1
+          fi
+          if echo "$ACTUAL" | grep -q "subdir-a"; then
+            echo "FAIL: expected raw-diff NOT to contain 'subdir-a' when search_path=tests/subdir-b"
+            exit 1
+          fi
+          echo "PASS: raw-diff correctly filtered to subdir-b"
+
+      - name: Cleanup test directories
+        if: always()
+        run: |
+          rm -rf tests/subdir-a tests/subdir-b

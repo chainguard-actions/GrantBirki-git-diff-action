@@ -1,0 +1,75 @@
+name: Test git diff against HEAD^1
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create a test commit to ensure HEAD^1 exists
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "test-change-$(date +%s)" > tests/test-change.txt
+          git add tests/test-change.txt
+          git commit -m "test: add test-change.txt for git diff test"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+
+      - name: Assert raw-diff output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is set"
+
+      - name: Assert json-diff output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: json-diff is set"
+
+      - name: Assert json-diff contains the changed file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "Checking json-diff for test-change.txt..."
+          if ! echo "$ACTUAL" | grep -q "test-change.txt"; then
+            echo "FAIL: expected json-diff to contain 'test-change.txt'"
+            echo "Got: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: json-diff contains the changed file"
+
+      - name: Assert raw-diff contains the changed file
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "Checking raw-diff for test-change.txt..."
+          if ! echo "$ACTUAL" | grep -q "test-change.txt"; then
+            echo "FAIL: expected raw-diff to contain 'test-change.txt'"
+            echo "Got: $ACTUAL"
+            exit 1
+          fi
+          echo "PASS: raw-diff contains the changed file"
+
+      - name: Cleanup test file
+        if: always()
+        run: |
+          rm -f tests/test-change.txt
