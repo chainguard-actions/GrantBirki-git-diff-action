@@ -9,6 +9,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
 | v2.8.0 | [`v2.8.0`](https://github.com/chainguard-actions/GrantBirki-git-diff-action/tree/v2.8.0) | [`f65a78c`](https://github.com/GrantBirki/git-diff-action/commit/f65a78c343ee50737aebbe653e35f3067752c7b3) |
+| v3.0.0 | [`v3.0.0`](https://github.com/chainguard-actions/GrantBirki-git-diff-action/tree/v3.0.0) | [`b27608d`](https://github.com/GrantBirki/git-diff-action/commit/b27608d18e6dd9b31b46ede56a93e045d3881a28) |
 
 ## Privacy
 
