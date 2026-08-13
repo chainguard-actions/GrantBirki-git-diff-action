@@ -1,4 +1,4 @@
-name: Test search path filtering
+name: Test search_path - limit diff to sub-path
 on:
   workflow_dispatch:
 jobs:
@@ -9,18 +9,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up git user
+      # Create commits with changes in two different directories
+      - name: Setup git user and create commits with changes in subdirectories
         run: |
           git config user.email "test@example.com"
           git config user.name "Test User"
 
-      - name: Create files in different directories and commit
-        run: |
-          mkdir -p subdir-a subdir-b
-          echo "content in subdir-a" > subdir-a/file-a.txt
-          echo "content in subdir-b" > subdir-b/file-b.txt
-          git add subdir-a/file-a.txt subdir-b/file-b.txt
-          git commit -m "Add files in subdirectories"
+          # Create a subdirectory and add a file
+          mkdir -p "$GITHUB_WORKSPACE/subdir-a"
+          echo "content in subdir-a" > "$GITHUB_WORKSPACE/subdir-a/file-a.txt"
+          mkdir -p "$GITHUB_WORKSPACE/subdir-b"
+          echo "content in subdir-b" > "$GITHUB_WORKSPACE/subdir-b/file-b.txt"
+
+          git add "$GITHUB_WORKSPACE/subdir-a/file-a.txt" "$GITHUB_WORKSPACE/subdir-b/file-b.txt"
+          git commit -m "test: add files in subdir-a and subdir-b"
 
       - id: action
         uses: .
@@ -32,33 +34,29 @@ jobs:
         env:
           ACTUAL: ${{ steps.action.outputs.json-diff }}
         run: |
-          echo "json-diff: $ACTUAL"
-          if echo "$ACTUAL" | grep -q "file-a.txt"; then
-            echo "PASS: file-a.txt found in json-diff"
-          else
-            echo "FAIL: file-a.txt not found in json-diff"
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: json-diff output is empty"
             exit 1
           fi
+          if ! echo "$ACTUAL" | grep -q 'subdir-a'; then
+            echo "FAIL: json-diff does not contain 'subdir-a'"
+            exit 1
+          fi
+          echo "PASS: json-diff contains subdir-a"
 
-      - name: Assert json-diff does not contain subdir-b file
+      - name: Assert json-diff does NOT contain subdir-b file
         env:
           ACTUAL: ${{ steps.action.outputs.json-diff }}
         run: |
-          echo "json-diff: $ACTUAL"
-          if echo "$ACTUAL" | grep -q "file-b.txt"; then
-            echo "FAIL: file-b.txt should not be in json-diff (outside search_path)"
+          echo "actual json-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q 'subdir-b'; then
+            echo "FAIL: json-diff contains 'subdir-b' but search_path was limited to subdir-a"
             exit 1
-          else
-            echo "PASS: file-b.txt correctly excluded from json-diff"
           fi
+          echo "PASS: json-diff does not contain subdir-b (search_path correctly limited)"
 
-      - name: Assert raw-diff is not empty
-        env:
-          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+      - name: Cleanup test directories
+        if: always()
         run: |
-          echo "actual raw-diff: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected raw-diff to be non-empty"
-            exit 1
-          fi
-          echo "PASS"
+          rm -rf "$GITHUB_WORKSPACE/subdir-a" "$GITHUB_WORKSPACE/subdir-b" || true

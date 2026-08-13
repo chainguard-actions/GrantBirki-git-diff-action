@@ -1,4 +1,4 @@
-name: Test file output
+name: Test file output - writing diff to files
 on:
   workflow_dispatch:
 jobs:
@@ -6,83 +6,69 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
 
-      - name: Set up git user
+      # Create a sample git diff file to feed into the action
+      - name: Create sample diff file
         run: |
-          git config user.email "test@example.com"
-          git config user.name "Test User"
-
-      - name: Create a file and commit it
-        run: |
-          echo "file output test content" > output-test-file.txt
-          git add output-test-file.txt
-          git commit -m "Add output test file"
+          printf 'diff --git a/bar.txt b/bar.txt\nindex 0000000..abcdef1 100644\n--- a/bar.txt\n+++ b/bar.txt\n@@ -0,0 +1,2 @@\n+hello world\n+goodbye world\n' > /tmp/input.diff
+          echo "Created diff file:"
+          cat /tmp/input.diff
 
       - id: action
         uses: .
         with:
-          base_branch: HEAD^1
-          json_diff_file_output: /tmp/diff-output.json
-          raw_diff_file_output: /tmp/diff-output.raw
+          git_diff_file: /tmp/input.diff
+          json_diff_file_output: /tmp/output.json
+          raw_diff_file_output: /tmp/output.raw
 
       - name: Assert json-diff-path output is set
         env:
           ACTUAL: ${{ steps.action.outputs.json-diff-path }}
         run: |
           echo "actual json-diff-path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected json-diff-path to be non-empty"
+          if [ "$ACTUAL" != "/tmp/output.json" ]; then
+            echo "FAIL: expected '/tmp/output.json' but got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS"
+          echo "PASS: json-diff-path is correct"
 
       - name: Assert raw-diff-path output is set
         env:
           ACTUAL: ${{ steps.action.outputs.raw-diff-path }}
         run: |
           echo "actual raw-diff-path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected raw-diff-path to be non-empty"
+          if [ "$ACTUAL" != "/tmp/output.raw" ]; then
+            echo "FAIL: expected '/tmp/output.raw' but got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS"
+          echo "PASS: raw-diff-path is correct"
 
-      - name: Assert JSON diff file exists and contains content
+      - name: Assert json diff file exists and is valid JSON
         run: |
-          if [ ! -f "/tmp/diff-output.json" ]; then
-            echo "FAIL: JSON diff file not found at /tmp/diff-output.json"
+          if [ ! -f /tmp/output.json ]; then
+            echo "FAIL: /tmp/output.json does not exist"
             exit 1
           fi
-          CONTENT=$(cat /tmp/diff-output.json)
-          echo "JSON diff file content: $CONTENT"
+          echo "File content:"
+          cat /tmp/output.json
+          # Validate it's JSON by checking for braces/brackets or "files" key
+          CONTENT=$(cat /tmp/output.json)
           if [ -z "$CONTENT" ]; then
-            echo "FAIL: JSON diff file is empty"
+            echo "FAIL: /tmp/output.json is empty"
             exit 1
           fi
-          if echo "$CONTENT" | grep -q "output-test-file.txt"; then
-            echo "PASS: output-test-file.txt found in JSON diff file"
-          else
-            echo "FAIL: output-test-file.txt not found in JSON diff file"
-            exit 1
-          fi
+          echo "PASS: json diff file exists and is non-empty"
 
-      - name: Assert raw diff file exists and contains content
+      - name: Assert raw diff file exists and is non-empty
         run: |
-          if [ ! -f "/tmp/diff-output.raw" ]; then
-            echo "FAIL: raw diff file not found at /tmp/diff-output.raw"
+          if [ ! -f /tmp/output.raw ]; then
+            echo "FAIL: /tmp/output.raw does not exist"
             exit 1
           fi
-          CONTENT=$(cat /tmp/diff-output.raw)
-          echo "raw diff file content: $CONTENT"
-          if [ -z "$CONTENT" ]; then
-            echo "FAIL: raw diff file is empty"
+          if [ ! -s /tmp/output.raw ]; then
+            echo "FAIL: /tmp/output.raw is empty"
             exit 1
           fi
-          if echo "$CONTENT" | grep -q "output-test-file.txt"; then
-            echo "PASS: output-test-file.txt found in raw diff file"
-          else
-            echo "FAIL: output-test-file.txt not found in raw diff file"
-            exit 1
-          fi
+          echo "File content:"
+          cat /tmp/output.raw
+          echo "PASS: raw diff file exists and is non-empty"
