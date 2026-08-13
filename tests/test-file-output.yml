@@ -1,45 +1,46 @@
-name: Test file output feature
+name: Test file output
 on:
   workflow_dispatch:
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Create a second commit so HEAD^1 exists and there is a real diff
+      - name: Set up git and create a diff
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "file output test content" > "$GITHUB_WORKSPACE/file-output-test.txt"
+          git add file-output-test.txt
+          git commit -m "Add file-output-test.txt"
 
       - id: action
         uses: .
         with:
-          git_diff_file: tests/fixtures/sample.diff
+          base_branch: HEAD^1
           json_diff_file_output: /tmp/diff-output.json
           raw_diff_file_output: /tmp/diff-output.txt
-          file_output_only: "true"
 
-      - name: Assert json-diff-path output is set
+      - name: Assert json-diff-path output
         env:
           ACTUAL: ${{ steps.action.outputs.json-diff-path }}
         run: |
           echo "actual json-diff-path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected json-diff-path output to be non-empty"
-            exit 1
-          fi
           if [ "$ACTUAL" != "/tmp/diff-output.json" ]; then
             echo "FAIL: expected json-diff-path to be '/tmp/diff-output.json', got '$ACTUAL'"
             exit 1
           fi
           echo "PASS: json-diff-path is correct"
 
-      - name: Assert raw-diff-path output is set
+      - name: Assert raw-diff-path output
         env:
           ACTUAL: ${{ steps.action.outputs.raw-diff-path }}
         run: |
           echo "actual raw-diff-path: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected raw-diff-path output to be non-empty"
-            exit 1
-          fi
           if [ "$ACTUAL" != "/tmp/diff-output.txt" ]; then
             echo "FAIL: expected raw-diff-path to be '/tmp/diff-output.txt', got '$ACTUAL'"
             exit 1
@@ -48,44 +49,31 @@ jobs:
 
       - name: Assert JSON diff file exists and is valid JSON
         run: |
-          if [ ! -f "/tmp/diff-output.json" ]; then
+          if [ ! -f /tmp/diff-output.json ]; then
             echo "FAIL: JSON diff file does not exist at /tmp/diff-output.json"
             exit 1
           fi
-          echo "File exists, validating JSON..."
-          python3 -m json.tool /tmp/diff-output.json > /dev/null
+          python3 -c "import json; d=json.load(open('/tmp/diff-output.json')); print('files count:', len(d.get('files', [])))"
           if [ $? -ne 0 ]; then
-            echo "FAIL: /tmp/diff-output.json is not valid JSON"
+            echo "FAIL: JSON diff file is not valid JSON"
             exit 1
           fi
-          echo "PASS: JSON diff file exists and is valid"
+          echo "PASS: JSON diff file exists and is valid JSON"
 
-      - name: Assert raw diff file exists and has content
+      - name: Assert raw diff file exists and contains diff content
         run: |
-          if [ ! -f "/tmp/diff-output.txt" ]; then
+          if [ ! -f /tmp/diff-output.txt ]; then
             echo "FAIL: raw diff file does not exist at /tmp/diff-output.txt"
             exit 1
           fi
           CONTENT=$(cat /tmp/diff-output.txt)
+          echo "raw diff file content: $CONTENT"
           if [ -z "$CONTENT" ]; then
             echo "FAIL: raw diff file is empty"
             exit 1
           fi
-          echo "PASS: raw diff file exists and has content"
-
-      - name: Assert file_output_only suppresses inline outputs
-        env:
-          JSON_DIFF: ${{ steps.action.outputs.json-diff }}
-          RAW_DIFF: ${{ steps.action.outputs.raw-diff }}
-        run: |
-          echo "json-diff output: '$JSON_DIFF'"
-          echo "raw-diff output: '$RAW_DIFF'"
-          if [ -n "$JSON_DIFF" ]; then
-            echo "FAIL: expected json-diff to be empty when file_output_only=true"
+          if ! grep -q "file-output-test.txt" /tmp/diff-output.txt; then
+            echo "FAIL: raw diff file does not contain 'file-output-test.txt'"
             exit 1
           fi
-          if [ -n "$RAW_DIFF" ]; then
-            echo "FAIL: expected raw-diff to be empty when file_output_only=true"
-            exit 1
-          fi
-          echo "PASS: inline outputs are suppressed when file_output_only=true"
+          echo "PASS: raw diff file exists and contains expected content"

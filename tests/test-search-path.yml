@@ -1,7 +1,6 @@
-name: Test search_path filtering
+name: Test search_path input
 on:
   workflow_dispatch:
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -10,69 +9,57 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create test commits with files in different directories
+      # Create changes in two different directories
+      - name: Set up git and create changes in two directories
         run: |
           git config user.email "test@example.com"
           git config user.name "Test User"
-          mkdir -p tests/subdir-a tests/subdir-b
-          echo "file-in-a-$(date +%s)" > tests/subdir-a/file.txt
-          echo "file-in-b-$(date +%s)" > tests/subdir-b/file.txt
-          git add tests/subdir-a/file.txt tests/subdir-b/file.txt
-          git commit -m "test: add files in subdir-a and subdir-b"
+          mkdir -p "$GITHUB_WORKSPACE/subdir-a"
+          mkdir -p "$GITHUB_WORKSPACE/subdir-b"
+          echo "content in subdir-a" > "$GITHUB_WORKSPACE/subdir-a/file-a.txt"
+          echo "content in subdir-b" > "$GITHUB_WORKSPACE/subdir-b/file-b.txt"
+          git add subdir-a/file-a.txt subdir-b/file-b.txt
+          git commit -m "Add files in subdir-a and subdir-b"
 
-      - name: Run action with search_path limited to tests/subdir-a
-        id: action-a
+      - id: action
         uses: .
         with:
           base_branch: HEAD^1
-          search_path: tests/subdir-a
+          search_path: subdir-a
 
-      - name: Assert raw-diff only contains subdir-a changes
+      - name: Assert raw-diff contains subdir-a file
         env:
-          ACTUAL: ${{ steps.action-a.outputs.raw-diff }}
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
         run: |
-          echo "raw-diff for subdir-a: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected raw-diff to be non-empty for subdir-a"
+          echo "actual raw-diff: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q "subdir-a/file-a.txt"; then
+            echo "FAIL: expected raw-diff to contain 'subdir-a/file-a.txt'"
             exit 1
           fi
-          if ! echo "$ACTUAL" | grep -q "subdir-a"; then
-            echo "FAIL: expected raw-diff to contain 'subdir-a'"
-            exit 1
-          fi
-          if echo "$ACTUAL" | grep -q "subdir-b"; then
-            echo "FAIL: expected raw-diff NOT to contain 'subdir-b' when search_path=tests/subdir-a"
-            exit 1
-          fi
-          echo "PASS: raw-diff correctly filtered to subdir-a"
+          echo "PASS: raw-diff contains 'subdir-a/file-a.txt'"
 
-      - name: Run action with search_path limited to tests/subdir-b
-        id: action-b
-        uses: .
-        with:
-          base_branch: HEAD^1
-          search_path: tests/subdir-b
-
-      - name: Assert raw-diff only contains subdir-b changes
+      - name: Assert raw-diff does NOT contain subdir-b file
         env:
-          ACTUAL: ${{ steps.action-b.outputs.raw-diff }}
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
         run: |
-          echo "raw-diff for subdir-b: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected raw-diff to be non-empty for subdir-b"
+          echo "actual raw-diff: $ACTUAL"
+          if echo "$ACTUAL" | grep -q "subdir-b/file-b.txt"; then
+            echo "FAIL: raw-diff should NOT contain 'subdir-b/file-b.txt' when search_path is 'subdir-a'"
             exit 1
           fi
-          if ! echo "$ACTUAL" | grep -q "subdir-b"; then
-            echo "FAIL: expected raw-diff to contain 'subdir-b'"
-            exit 1
-          fi
-          if echo "$ACTUAL" | grep -q "subdir-a"; then
-            echo "FAIL: expected raw-diff NOT to contain 'subdir-a' when search_path=tests/subdir-b"
-            exit 1
-          fi
-          echo "PASS: raw-diff correctly filtered to subdir-b"
+          echo "PASS: raw-diff does not contain 'subdir-b/file-b.txt'"
 
-      - name: Cleanup test directories
-        if: always()
+      - name: Assert json-diff contains only subdir-a file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
         run: |
-          rm -rf tests/subdir-a tests/subdir-b
+          echo "actual json-diff: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q "subdir-a/file-a.txt"; then
+            echo "FAIL: expected json-diff to contain 'subdir-a/file-a.txt'"
+            exit 1
+          fi
+          if echo "$ACTUAL" | grep -q "subdir-b/file-b.txt"; then
+            echo "FAIL: json-diff should NOT contain 'subdir-b/file-b.txt'"
+            exit 1
+          fi
+          echo "PASS: json-diff correctly scoped to search_path"

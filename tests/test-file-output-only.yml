@@ -1,0 +1,78 @@
+name: Test file_output_only mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Create a second commit so HEAD^1 exists and there is a real diff
+      - name: Set up git and create a diff
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "file output only test" > "$GITHUB_WORKSPACE/file-only-test.txt"
+          git add file-only-test.txt
+          git commit -m "Add file-only-test.txt"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          file_output_only: 'true'
+          json_diff_file_output: /tmp/file-only-diff.json
+          raw_diff_file_output: /tmp/file-only-diff.txt
+
+      - name: Assert raw-diff step output is empty (file_output_only=true)
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff output: '$ACTUAL'"
+          if [ -n "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff step output to be empty when file_output_only=true, got: '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: raw-diff step output is empty as expected"
+
+      - name: Assert json-diff step output is empty (file_output_only=true)
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff output: '$ACTUAL'"
+          if [ -n "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff step output to be empty when file_output_only=true, got: '$ACTUAL'"
+            exit 1
+          fi
+          echo "PASS: json-diff step output is empty as expected"
+
+      - name: Assert JSON diff file was still written
+        run: |
+          if [ ! -f /tmp/file-only-diff.json ]; then
+            echo "FAIL: JSON diff file was not written to /tmp/file-only-diff.json"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/file-only-diff.json)
+          echo "JSON diff file content: $CONTENT"
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: JSON diff file is empty"
+            exit 1
+          fi
+          python3 -c "import json; d=json.load(open('/tmp/file-only-diff.json')); print('files count:', len(d.get('files', [])))"
+          echo "PASS: JSON diff file was written and is valid JSON"
+
+      - name: Assert raw diff file was still written
+        run: |
+          if [ ! -f /tmp/file-only-diff.txt ]; then
+            echo "FAIL: raw diff file was not written to /tmp/file-only-diff.txt"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/file-only-diff.txt)
+          echo "raw diff file content: $CONTENT"
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: raw diff file is empty"
+            exit 1
+          fi
+          echo "PASS: raw diff file was written"
