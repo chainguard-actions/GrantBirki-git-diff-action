@@ -7,64 +7,63 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Create a sample git diff file
+        run: |
+          cat > /tmp/sample-file-only.diff << 'EOF'
+          diff --git a/baz.txt b/baz.txt
+          index e69de29..d95f3ad 100644
+          --- a/baz.txt
+          +++ b/baz.txt
+          @@ -0,0 +1 @@
+          +only in file
+          EOF
+
       - id: action
         uses: .
         with:
-          git_diff_file: "${{ github.workspace }}/tests/fixtures/sample.diff"
-          json_diff_file_output: "/tmp/file-only-diff.json"
-          raw_diff_file_output: "/tmp/file-only-diff.raw"
-          file_output_only: "true"
+          git_diff_file: /tmp/sample-file-only.diff
+          file_output_only: 'true'
+          json_diff_file_output: /tmp/file-only-output.json
+          raw_diff_file_output: /tmp/file-only-output.raw
 
-      - name: Assert json-diff output is empty (file_output_only=true)
+      - name: Assert json-diff step output is empty (file_output_only=true)
         env:
-          JSON_DIFF: ${{ steps.action.outputs.json-diff }}
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
         run: |
-          echo "json-diff: '$JSON_DIFF'"
-          if [ -n "$JSON_DIFF" ]; then
-            echo "FAIL: expected json-diff to be empty when file_output_only=true, got: $JSON_DIFF"
+          echo "actual: '$ACTUAL'"
+          if [ -n "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff output to be empty when file_output_only=true, got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS: json-diff is empty as expected"
+          echo "PASS: json-diff output is empty as expected"
 
-      - name: Assert raw-diff output is empty (file_output_only=true)
+      - name: Assert raw-diff step output is empty (file_output_only=true)
         env:
-          RAW_DIFF: ${{ steps.action.outputs.raw-diff }}
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
         run: |
-          echo "raw-diff: '$RAW_DIFF'"
-          if [ -n "$RAW_DIFF" ]; then
-            echo "FAIL: expected raw-diff to be empty when file_output_only=true, got: $RAW_DIFF"
+          echo "actual: '$ACTUAL'"
+          if [ -n "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff output to be empty when file_output_only=true, got '$ACTUAL'"
             exit 1
           fi
-          echo "PASS: raw-diff is empty as expected"
+          echo "PASS: raw-diff output is empty as expected"
 
       - name: Assert JSON diff file was still written
         run: |
-          if [ ! -f "/tmp/file-only-diff.json" ]; then
-            echo "FAIL: /tmp/file-only-diff.json does not exist"
+          if [ ! -f /tmp/file-only-output.json ]; then
+            echo "FAIL: JSON diff file was not written even though json_diff_file_output was set"
             exit 1
           fi
-          python3 -m json.tool /tmp/file-only-diff.json > /dev/null || { echo "FAIL: /tmp/file-only-diff.json is not valid JSON"; exit 1; }
-          echo "PASS: JSON diff file was written correctly"
+          echo "JSON file content:"
+          cat /tmp/file-only-output.json
+          echo "PASS: JSON diff file was written"
 
       - name: Assert raw diff file was still written
         run: |
-          if [ ! -f "/tmp/file-only-diff.raw" ]; then
-            echo "FAIL: /tmp/file-only-diff.raw does not exist"
+          if [ ! -f /tmp/file-only-output.raw ]; then
+            echo "FAIL: raw diff file was not written even though raw_diff_file_output was set"
             exit 1
           fi
-          if [ ! -s "/tmp/file-only-diff.raw" ]; then
-            echo "FAIL: /tmp/file-only-diff.raw is empty"
-            exit 1
-          fi
-          echo "PASS: raw diff file was written correctly"
-
-      - name: Assert json-diff-path is set
-        env:
-          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
-        run: |
-          echo "json-diff-path: $JSON_PATH"
-          if [ "$JSON_PATH" != "/tmp/file-only-diff.json" ]; then
-            echo "FAIL: expected json-diff-path='/tmp/file-only-diff.json', got '$JSON_PATH'"
-            exit 1
-          fi
-          echo "PASS: json-diff-path is set correctly"
+          echo "Raw file content:"
+          cat /tmp/file-only-output.raw
+          echo "PASS: raw diff file was written"

@@ -1,0 +1,57 @@
+name: Test basic diff from file
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create a sample git diff file
+        run: |
+          cat > /tmp/sample.diff << 'EOF'
+          diff --git a/foo.txt b/foo.txt
+          index e69de29..d95f3ad 100644
+          --- a/foo.txt
+          +++ b/foo.txt
+          @@ -0,0 +1 @@
+          +hello world
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          git_diff_file: /tmp/sample.diff
+
+      - name: Assert json-diff output is non-empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: json-diff output is present"
+
+      - name: Assert json-diff contains files array
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q '"files"'; then
+            echo "FAIL: expected json-diff to contain 'files' key"
+            exit 1
+          fi
+          echo "PASS: json-diff contains files array"
+
+      - name: Assert raw-diff output is non-empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff output to be non-empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff output is present"

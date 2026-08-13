@@ -1,4 +1,4 @@
-name: Test file output (json and raw diff written to files)
+name: Test file output options
 on:
   workflow_dispatch:
 jobs:
@@ -7,52 +7,71 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Create a sample git diff file
+        run: |
+          cat > /tmp/sample-for-file-output.diff << 'EOF'
+          diff --git a/bar.txt b/bar.txt
+          index e69de29..d95f3ad 100644
+          --- a/bar.txt
+          +++ b/bar.txt
+          @@ -0,0 +1,2 @@
+          +line one
+          +line two
+          EOF
+
       - id: action
         uses: .
         with:
-          git_diff_file: "${{ github.workspace }}/tests/fixtures/sample.diff"
-          json_diff_file_output: "/tmp/diff-output.json"
-          raw_diff_file_output: "/tmp/diff-output.raw"
+          git_diff_file: /tmp/sample-for-file-output.diff
+          json_diff_file_output: /tmp/output-diff.json
+          raw_diff_file_output: /tmp/output-diff.raw
 
-      - name: Assert json-diff-path output
+      - name: Assert json-diff-path output is set
         env:
-          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
+          ACTUAL: ${{ steps.action.outputs.json-diff-path }}
         run: |
-          echo "json-diff-path: $JSON_PATH"
-          if [ "$JSON_PATH" != "/tmp/diff-output.json" ]; then
-            echo "FAIL: expected json-diff-path to be '/tmp/diff-output.json', got '$JSON_PATH'"
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "/tmp/output-diff.json" ]; then
+            echo "FAIL: expected json-diff-path to be '/tmp/output-diff.json', got '$ACTUAL'"
             exit 1
           fi
           echo "PASS: json-diff-path is correct"
 
-      - name: Assert raw-diff-path output
+      - name: Assert raw-diff-path output is set
         env:
-          RAW_PATH: ${{ steps.action.outputs.raw-diff-path }}
+          ACTUAL: ${{ steps.action.outputs.raw-diff-path }}
         run: |
-          echo "raw-diff-path: $RAW_PATH"
-          if [ "$RAW_PATH" != "/tmp/diff-output.raw" ]; then
-            echo "FAIL: expected raw-diff-path to be '/tmp/diff-output.raw', got '$RAW_PATH'"
+          echo "actual: $ACTUAL"
+          if [ "$ACTUAL" != "/tmp/output-diff.raw" ]; then
+            echo "FAIL: expected raw-diff-path to be '/tmp/output-diff.raw', got '$ACTUAL'"
             exit 1
           fi
           echo "PASS: raw-diff-path is correct"
 
       - name: Assert JSON diff file exists and is valid JSON
         run: |
-          if [ ! -f "/tmp/diff-output.json" ]; then
-            echo "FAIL: /tmp/diff-output.json does not exist"
+          if [ ! -f /tmp/output-diff.json ]; then
+            echo "FAIL: JSON diff file does not exist at /tmp/output-diff.json"
             exit 1
           fi
-          python3 -m json.tool /tmp/diff-output.json > /dev/null || { echo "FAIL: /tmp/diff-output.json is not valid JSON"; exit 1; }
+          echo "JSON file content:"
+          cat /tmp/output-diff.json
+          if ! cat /tmp/output-diff.json | python3 -c "import sys, json; json.load(sys.stdin)" 2>/dev/null; then
+            echo "FAIL: JSON diff file is not valid JSON"
+            exit 1
+          fi
           echo "PASS: JSON diff file exists and is valid JSON"
 
       - name: Assert raw diff file exists and is non-empty
         run: |
-          if [ ! -f "/tmp/diff-output.raw" ]; then
-            echo "FAIL: /tmp/diff-output.raw does not exist"
+          if [ ! -f /tmp/output-diff.raw ]; then
+            echo "FAIL: raw diff file does not exist at /tmp/output-diff.raw"
             exit 1
           fi
-          if [ ! -s "/tmp/diff-output.raw" ]; then
-            echo "FAIL: /tmp/diff-output.raw is empty"
+          echo "Raw file content:"
+          cat /tmp/output-diff.raw
+          if [ ! -s /tmp/output-diff.raw ]; then
+            echo "FAIL: raw diff file is empty"
             exit 1
           fi
           echo "PASS: raw diff file exists and is non-empty"
