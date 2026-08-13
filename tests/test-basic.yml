@@ -1,4 +1,4 @@
-name: Test basic usage
+name: Test basic git diff
 on:
   workflow_dispatch:
 jobs:
@@ -13,45 +13,55 @@ jobs:
         run: |
           git config user.email "test@example.com"
           git config user.name "Test User"
-          echo "hello world" > /tmp/testfile.txt
-          cp /tmp/testfile.txt testfile-for-diff.txt
-          git add testfile-for-diff.txt
-          git commit -m "Add testfile-for-diff.txt"
+          echo "hello world" > test-basic-file.txt
+          git add test-basic-file.txt
+          git commit -m "Add test-basic-file.txt"
 
       - id: action
         uses: .
         with:
           base_branch: HEAD^1
 
-      - name: Assert json-diff is not empty
-        env:
-          ACTUAL: ${{ steps.action.outputs.json-diff }}
-        run: |
-          echo "actual json-diff: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: json-diff output is empty"
-            exit 1
-          fi
-          echo "PASS: json-diff is non-empty"
-
-      - name: Assert raw-diff is not empty
+      - name: Assert raw-diff is non-empty
         env:
           ACTUAL: ${{ steps.action.outputs.raw-diff }}
         run: |
           echo "actual raw-diff: $ACTUAL"
           if [ -z "$ACTUAL" ]; then
-            echo "FAIL: raw-diff output is empty"
+            echo "FAIL: expected raw-diff to be non-empty"
             exit 1
           fi
           echo "PASS: raw-diff is non-empty"
 
-      - name: Assert json-diff contains the added file
+      - name: Assert json-diff is non-empty
         env:
           ACTUAL: ${{ steps.action.outputs.json-diff }}
         run: |
-          echo "json-diff: $ACTUAL"
-          if ! echo "$ACTUAL" | grep -q "testfile-for-diff.txt"; then
-            echo "FAIL: json-diff does not mention testfile-for-diff.txt"
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff to be non-empty"
             exit 1
           fi
-          echo "PASS: json-diff contains testfile-for-diff.txt"
+          echo "PASS: json-diff is non-empty"
+
+      - name: Assert json-diff contains the test file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q "test-basic-file"; then
+            echo "FAIL: expected json-diff to contain 'test-basic-file'"
+            exit 1
+          fi
+          echo "PASS: json-diff contains test-basic-file"
+
+      - name: Assert raw-diff contains the test file
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q "test-basic-file"; then
+            echo "FAIL: expected raw-diff to contain 'test-basic-file'"
+            exit 1
+          fi
+          echo "PASS: raw-diff contains test-basic-file"

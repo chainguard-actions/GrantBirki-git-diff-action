@@ -1,0 +1,86 @@
+name: Test file output only mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create a commit to diff against
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "file output only test" > test-file-output-only.txt
+          git add test-file-output-only.txt
+          git commit -m "Add test-file-output-only.txt"
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          file_output_only: 'true'
+          json_diff_file_output: /tmp/file-only-diff.json
+          raw_diff_file_output: /tmp/file-only-diff.txt
+
+      - name: Assert JSON diff file exists and has content
+        run: |
+          echo "Checking /tmp/file-only-diff.json"
+          if [ ! -f /tmp/file-only-diff.json ]; then
+            echo "FAIL: /tmp/file-only-diff.json does not exist"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/file-only-diff.json)
+          echo "content: $CONTENT"
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: /tmp/file-only-diff.json is empty"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q "test-file-output-only"; then
+            echo "FAIL: JSON diff file does not contain 'test-file-output-only'"
+            exit 1
+          fi
+          echo "PASS: JSON diff file exists and contains expected content"
+
+      - name: Assert raw diff file exists and has content
+        run: |
+          echo "Checking /tmp/file-only-diff.txt"
+          if [ ! -f /tmp/file-only-diff.txt ]; then
+            echo "FAIL: /tmp/file-only-diff.txt does not exist"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/file-only-diff.txt)
+          echo "content: $CONTENT"
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: /tmp/file-only-diff.txt is empty"
+            exit 1
+          fi
+          if ! echo "$CONTENT" | grep -q "test-file-output-only"; then
+            echo "FAIL: raw diff file does not contain 'test-file-output-only'"
+            exit 1
+          fi
+          echo "PASS: raw diff file exists and contains expected content"
+
+      - name: Assert json-diff-path output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          echo "actual json-diff-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff-path to be set"
+            exit 1
+          fi
+          echo "PASS: json-diff-path is set"
+
+      - name: Assert raw-diff-path output is set
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff-path }}
+        run: |
+          echo "actual raw-diff-path: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff-path to be set"
+            exit 1
+          fi
+          echo "PASS: raw-diff-path is set"

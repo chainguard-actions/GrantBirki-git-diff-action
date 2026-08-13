@@ -13,52 +13,52 @@ jobs:
         run: |
           git config user.email "test@example.com"
           git config user.name "Test User"
-          mkdir -p subdir-a subdir-b
-          echo "content in subdir-a" > subdir-a/file-a.txt
-          echo "content in subdir-b" > subdir-b/file-b.txt
-          git add subdir-a/file-a.txt subdir-b/file-b.txt
-          git commit -m "Add files in subdir-a and subdir-b"
+          mkdir -p subdir-alpha subdir-beta
+          echo "alpha content" > subdir-alpha/alpha.txt
+          echo "beta content" > subdir-beta/beta.txt
+          git add subdir-alpha/alpha.txt subdir-beta/beta.txt
+          git commit -m "Add files in subdir-alpha and subdir-beta"
 
       - id: action
         uses: .
         with:
           base_branch: HEAD^1
-          search_path: subdir-a
+          search_path: subdir-alpha
 
-      - name: Assert json-diff only contains subdir-a files
+      - name: Assert json-diff contains only subdir-alpha files
         env:
           ACTUAL: ${{ steps.action.outputs.json-diff }}
         run: |
-          echo "json-diff: $ACTUAL"
+          echo "actual json-diff: $ACTUAL"
           if [ -z "$ACTUAL" ]; then
-            echo "FAIL: json-diff output is empty"
+            echo "FAIL: expected json-diff to be non-empty"
             exit 1
           fi
-          if ! echo "$ACTUAL" | grep -q "subdir-a"; then
-            echo "FAIL: json-diff does not contain subdir-a files"
+          if ! echo "$ACTUAL" | grep -q "alpha"; then
+            echo "FAIL: expected json-diff to contain 'alpha'"
             exit 1
           fi
-          if echo "$ACTUAL" | grep -q "subdir-b"; then
-            echo "FAIL: json-diff contains subdir-b files which should be excluded by search_path"
+          if echo "$ACTUAL" | grep -q "beta"; then
+            echo "FAIL: expected json-diff NOT to contain 'beta' (outside search_path)"
             exit 1
           fi
-          echo "PASS: json-diff correctly filtered to subdir-a only"
+          echo "PASS: json-diff contains alpha but not beta"
 
-      - name: Assert raw-diff only contains subdir-a files
+      - name: Assert raw-diff contains only subdir-alpha files
         env:
           ACTUAL: ${{ steps.action.outputs.raw-diff }}
         run: |
-          echo "raw-diff: $ACTUAL"
+          echo "actual raw-diff: $ACTUAL"
           if [ -z "$ACTUAL" ]; then
-            echo "FAIL: raw-diff output is empty"
+            echo "FAIL: expected raw-diff to be non-empty"
             exit 1
           fi
-          if ! echo "$ACTUAL" | grep -q "subdir-a"; then
-            echo "FAIL: raw-diff does not contain subdir-a files"
+          if ! echo "$ACTUAL" | grep -q "alpha"; then
+            echo "FAIL: expected raw-diff to contain 'alpha'"
             exit 1
           fi
-          if echo "$ACTUAL" | grep -q "subdir-b"; then
-            echo "FAIL: raw-diff contains subdir-b files which should be excluded by search_path"
+          if echo "$ACTUAL" | grep -q "beta"; then
+            echo "FAIL: expected raw-diff NOT to contain 'beta' (outside search_path)"
             exit 1
           fi
-          echo "PASS: raw-diff correctly filtered to subdir-a only"
+          echo "PASS: raw-diff contains alpha but not beta"

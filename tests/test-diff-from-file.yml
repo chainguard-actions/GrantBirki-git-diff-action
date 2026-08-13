@@ -1,0 +1,60 @@
+name: Test reading diff from file
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create a fake diff file
+        run: |
+          cat > /tmp/fake.diff << 'EOF'
+          diff --git a/fake-file.txt b/fake-file.txt
+          new file mode 100644
+          index 0000000..8ab686e
+          --- /dev/null
+          +++ b/fake-file.txt
+          @@ -0,0 +1 @@
+          +fake content
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          git_diff_file: /tmp/fake.diff
+
+      - name: Assert raw-diff is non-empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.raw-diff }}
+        run: |
+          echo "actual raw-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected raw-diff to be non-empty when reading from file"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
+
+      - name: Assert json-diff is non-empty
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if [ -z "$ACTUAL" ]; then
+            echo "FAIL: expected json-diff to be non-empty when reading from file"
+            exit 1
+          fi
+          echo "PASS: json-diff is non-empty"
+
+      - name: Assert json-diff contains fake-file
+        env:
+          ACTUAL: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "actual json-diff: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -q "fake-file"; then
+            echo "FAIL: expected json-diff to contain 'fake-file'"
+            exit 1
+          fi
+          echo "PASS: json-diff contains fake-file"
