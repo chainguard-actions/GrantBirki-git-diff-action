@@ -14,6 +14,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v2.8.1 | [`v2.8.1`](https://github.com/chainguard-actions/GrantBirki-git-diff-action/tree/v2.8.1) | [`7420e4d`](https://github.com/GrantBirki/git-diff-action/commit/7420e4d095c27bb23359787640976d60c94fd216) |
 | v3.0.0 | [`v3.0.0`](https://github.com/chainguard-actions/GrantBirki-git-diff-action/tree/v3.0.0) | [`b27608d`](https://github.com/GrantBirki/git-diff-action/commit/b27608d18e6dd9b31b46ede56a93e045d3881a28) |
 | v3.0.1 | [`v3.0.1`](https://github.com/chainguard-actions/GrantBirki-git-diff-action/tree/v3.0.1) | [`f089430`](https://github.com/GrantBirki/git-diff-action/commit/f08943037125089680a9e607290bfa4c78ac1c79) |
+| v3.0.2 | [`v3.0.2`](https://github.com/chainguard-actions/GrantBirki-git-diff-action/tree/v3.0.2) | [`b8988a3`](https://github.com/GrantBirki/git-diff-action/commit/b8988a3c1104ea0e8ebcd9a092e0224b7657c95d) |
 
 ## Privacy
 
