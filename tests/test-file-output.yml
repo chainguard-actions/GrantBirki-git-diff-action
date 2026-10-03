@@ -1,0 +1,84 @@
+name: Test git-diff-action file output
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Create a commit so HEAD^1 exists and there is a real diff
+      - name: Set up git user and create a test commit
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "file output test $(date)" > tests/test-file-output-fixture.txt
+          git add tests/test-file-output-fixture.txt
+          git commit -m "test: add fixture file for file output test"
+
+      - id: diff
+        uses: .
+        with:
+          base_branch: HEAD^1
+          json_diff_file_output: /tmp/diff-output.json
+          raw_diff_file_output: /tmp/diff-output.txt
+
+      - name: Assert json-diff-path output is set
+        env:
+          JSON_PATH: ${{ steps.diff.outputs.json-diff-path }}
+        run: |
+          echo "json-diff-path: $JSON_PATH"
+          if [ -z "$JSON_PATH" ]; then
+            echo "FAIL: json-diff-path output is empty"
+            exit 1
+          fi
+          echo "PASS: json-diff-path is set to '$JSON_PATH'"
+
+      - name: Assert raw-diff-path output is set
+        env:
+          RAW_PATH: ${{ steps.diff.outputs.raw-diff-path }}
+        run: |
+          echo "raw-diff-path: $RAW_PATH"
+          if [ -z "$RAW_PATH" ]; then
+            echo "FAIL: raw-diff-path output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff-path is set to '$RAW_PATH'"
+
+      - name: Assert JSON diff file exists and is valid JSON object
+        run: |
+          if [ ! -f /tmp/diff-output.json ]; then
+            echo "FAIL: JSON diff file not found at /tmp/diff-output.json"
+            exit 1
+          fi
+          echo "File exists. Contents:"
+          cat /tmp/diff-output.json
+          python3 -c "
+          import json
+          with open('/tmp/diff-output.json') as f:
+            data = json.load(f)
+          if not isinstance(data, dict):
+            print('FAIL: JSON diff file does not contain an object')
+            exit(1)
+          if 'files' not in data:
+            print('FAIL: JSON diff object missing files key')
+            exit(1)
+          print(f'PASS: JSON diff file is valid GitDiff object with {len(data[\"files\"])} entries')
+          "
+
+      - name: Assert raw diff file exists and is non-empty
+        run: |
+          if [ ! -f /tmp/diff-output.txt ]; then
+            echo "FAIL: raw diff file not found at /tmp/diff-output.txt"
+            exit 1
+          fi
+          CONTENT=$(cat /tmp/diff-output.txt)
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: raw diff file is empty"
+            exit 1
+          fi
+          echo "PASS: raw diff file exists and is non-empty"
+          echo "Contents preview:"
+          head -5 /tmp/diff-output.txt

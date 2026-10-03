@@ -1,0 +1,78 @@
+name: Test basic git-diff-action usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Create a commit so HEAD^1 exists and there is a real diff
+      - name: Set up git user and create a test commit
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "hello world $(date)" > tests/test-basic-fixture.txt
+          git add tests/test-basic-fixture.txt
+          git commit -m "test: add fixture file for basic diff test"
+
+      - id: diff
+        uses: .
+        with:
+          base_branch: HEAD^1
+
+      - name: Assert json-diff is non-empty
+        env:
+          JSON_DIFF: ${{ steps.diff.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if [ -z "$JSON_DIFF" ]; then
+            echo "FAIL: json-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: json-diff is non-empty"
+
+      - name: Assert raw-diff is non-empty
+        env:
+          RAW_DIFF: ${{ steps.diff.outputs.raw-diff }}
+        run: |
+          echo "raw-diff: $RAW_DIFF"
+          if [ -z "$RAW_DIFF" ]; then
+            echo "FAIL: raw-diff output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
+
+      - name: Assert json-diff is valid JSON object with files array
+        env:
+          JSON_DIFF: ${{ steps.diff.outputs.json-diff }}
+        run: |
+          echo "Validating JSON structure..."
+          echo "$JSON_DIFF" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if not isinstance(data, dict):
+            print('FAIL: json-diff is not a JSON object')
+            sys.exit(1)
+          if 'files' not in data:
+            print('FAIL: json-diff object missing files key')
+            sys.exit(1)
+          if not isinstance(data['files'], list):
+            print('FAIL: json-diff files is not a list')
+            sys.exit(1)
+          print(f'PASS: json-diff is a valid GitDiff object with {len(data[\"files\"])} file entries')
+          "
+
+      - name: Assert json-diff contains the test fixture file
+        env:
+          JSON_DIFF: ${{ steps.diff.outputs.json-diff }}
+        run: |
+          echo "Checking for fixture file in diff..."
+          if echo "$JSON_DIFF" | grep -q "test-basic-fixture"; then
+            echo "PASS: fixture file found in json-diff"
+          else
+            echo "FAIL: fixture file not found in json-diff"
+            exit 1
+          fi

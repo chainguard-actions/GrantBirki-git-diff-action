@@ -1,0 +1,85 @@
+name: Test git-diff-action reading diff from file
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Create a realistic git diff file inside the workspace (required by the action)
+      - name: Create a fake diff file inside the workspace
+        run: |
+          cat > "$GITHUB_WORKSPACE/tests/fake-input.diff" << 'EOF'
+          diff --git a/src/foo.js b/src/foo.js
+          index abc1234..def5678 100644
+          --- a/src/foo.js
+          +++ b/src/foo.js
+          @@ -1,5 +1,6 @@
+           function hello() {
+          -  return "hello";
+          +  return "hello world";
+          +  // updated greeting
+           }
+          EOF
+
+      - id: diff
+        uses: .
+        with:
+          git_diff_file: tests/fake-input.diff
+
+      - name: Assert json-diff is non-empty
+        env:
+          JSON_DIFF: ${{ steps.diff.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if [ -z "$JSON_DIFF" ]; then
+            echo "FAIL: json-diff output is empty when reading from file"
+            exit 1
+          fi
+          echo "PASS: json-diff is non-empty"
+
+      - name: Assert raw-diff is non-empty
+        env:
+          RAW_DIFF: ${{ steps.diff.outputs.raw-diff }}
+        run: |
+          echo "raw-diff: $RAW_DIFF"
+          if [ -z "$RAW_DIFF" ]; then
+            echo "FAIL: raw-diff output is empty when reading from file"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
+
+      - name: Assert json-diff is valid JSON object with files array
+        env:
+          JSON_DIFF: ${{ steps.diff.outputs.json-diff }}
+        run: |
+          echo "Validating JSON structure..."
+          echo "$JSON_DIFF" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if not isinstance(data, dict):
+            print('FAIL: json-diff is not a JSON object')
+            sys.exit(1)
+          if 'files' not in data:
+            print('FAIL: json-diff object missing files key')
+            sys.exit(1)
+          if not isinstance(data['files'], list):
+            print('FAIL: json-diff files is not a list')
+            sys.exit(1)
+          print(f'PASS: json-diff is a valid GitDiff object with {len(data[\"files\"])} file entries')
+          "
+
+      - name: Assert json-diff contains the expected file from the diff
+        env:
+          JSON_DIFF: ${{ steps.diff.outputs.json-diff }}
+        run: |
+          echo "Checking for src/foo.js in diff..."
+          if echo "$JSON_DIFF" | grep -q "foo.js"; then
+            echo "PASS: foo.js found in json-diff"
+          else
+            echo "FAIL: foo.js not found in json-diff"
+            exit 1
+          fi

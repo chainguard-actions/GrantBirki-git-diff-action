@@ -1,0 +1,48 @@
+{
+  "name": "git-diff-action",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A GitHub Action for gathering the git diff of a pull request in JSON format",
+  "main": "src/main.ts",
+  "scripts": {
+    "bootstrap": "script/bootstrap",
+    "format": "script/format",
+    "format-check": "script/format-check",
+    "typecheck": "script/typecheck",
+    "lint": "script/lint",
+    "test": "script/test",
+    "ci-test": "script/test",
+    "package": "script/build",
+    "bundle": "script/build",
+    "acceptance": "script/acceptance",
+    "check": "script/check",
+    "all": "script/all",
+    "verify-bundle": "script/verify-bundle"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GrantBirki/git-diff.git"
+  },
+  "keywords": [
+    "actions",
+    "git",
+    "diff",
+    "ci"
+  ],
+  "author": "Grant Birkinbine",
+  "license": "MIT",
+  "dependencies": {
+    "parse-git-diff": "0.0.20"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.2",
+    "@vercel/ncc": "0.38.4",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "undici-types": "7.18.0"
+  },
+  "type": "module",
+  "packageManager": "npm@11.9.0"
+}

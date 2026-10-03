@@ -1,0 +1,80 @@
+name: Test git-diff-action search_path filtering
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      # Create a commit that touches files in two different directories
+      - name: Set up git user and create test commits with files in multiple dirs
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          mkdir -p tests/subdir-a tests/subdir-b
+          echo "file in subdir-a $(date)" > tests/subdir-a/file-a.txt
+          echo "file in subdir-b $(date)" > tests/subdir-b/file-b.txt
+          git add tests/subdir-a/file-a.txt tests/subdir-b/file-b.txt
+          git commit -m "test: add files in two subdirs for search_path test"
+
+      # Run action scoped to subdir-a only
+      - id: diff-scoped
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: tests/subdir-a
+
+      - name: Assert json-diff is non-empty and valid
+        env:
+          JSON_DIFF: ${{ steps.diff-scoped.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if [ -z "$JSON_DIFF" ]; then
+            echo "FAIL: json-diff is empty"
+            exit 1
+          fi
+          echo "$JSON_DIFF" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          if not isinstance(data, dict) or 'files' not in data:
+            print('FAIL: json-diff is not a valid GitDiff object')
+            sys.exit(1)
+          print(f'PASS: json-diff is a valid GitDiff object with {len(data[\"files\"])} file entries')
+          "
+
+      - name: Assert json-diff contains subdir-a file
+        env:
+          JSON_DIFF: ${{ steps.diff-scoped.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if echo "$JSON_DIFF" | grep -q "file-a.txt"; then
+            echo "PASS: file-a.txt found in scoped diff"
+          else
+            echo "FAIL: file-a.txt not found in scoped diff"
+            exit 1
+          fi
+
+      - name: Assert json-diff does NOT contain subdir-b file
+        env:
+          JSON_DIFF: ${{ steps.diff-scoped.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if echo "$JSON_DIFF" | grep -q "file-b.txt"; then
+            echo "FAIL: file-b.txt should not appear in diff scoped to subdir-a"
+            exit 1
+          fi
+          echo "PASS: file-b.txt correctly excluded from scoped diff"
+
+      - name: Assert raw-diff is non-empty
+        env:
+          RAW_DIFF: ${{ steps.diff-scoped.outputs.raw-diff }}
+        run: |
+          echo "raw-diff: $RAW_DIFF"
+          if [ -z "$RAW_DIFF" ]; then
+            echo "FAIL: raw-diff is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff is non-empty"
