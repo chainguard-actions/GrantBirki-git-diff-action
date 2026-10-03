@@ -1,0 +1,51 @@
+name: Test search_path scoping
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user and create commits with files in different paths
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          # Create a file inside the subdir and one outside
+          mkdir -p subdir
+          echo "inside subdir" > subdir/inside.txt
+          echo "outside subdir" > outside.txt
+          git add subdir/inside.txt outside.txt
+          git commit -m "Add files in and out of subdir"
+          git log --oneline -3
+
+      - name: Run action scoped to subdir
+        id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          search_path: subdir
+
+      - name: Assert json-diff contains inside.txt
+        env:
+          JSON_DIFF: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if ! echo "$JSON_DIFF" | grep -q "inside.txt"; then
+            echo "FAIL: json-diff does not contain inside.txt (which is in subdir)"
+            exit 1
+          fi
+          echo "PASS: json-diff contains inside.txt"
+
+      - name: Assert json-diff does not contain outside.txt
+        env:
+          JSON_DIFF: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: $JSON_DIFF"
+          if echo "$JSON_DIFF" | grep -q "outside.txt"; then
+            echo "FAIL: json-diff contains outside.txt (which is outside search_path)"
+            exit 1
+          fi
+          echo "PASS: json-diff does not contain outside.txt (correctly scoped)"

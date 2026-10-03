@@ -1,0 +1,91 @@
+name: Test file_output_only mode
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user and create a commit to diff against
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "file output only test" > file-only-test.txt
+          git add file-only-test.txt
+          git commit -m "Add file-only-test.txt"
+          git log --oneline -3
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          json_diff_file_output: /tmp/file-only-diff.json
+          raw_diff_file_output: /tmp/file-only-diff.raw
+          file_output_only: 'true'
+
+      - name: Assert json-diff-path is set
+        env:
+          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          echo "json-diff-path: $JSON_PATH"
+          if [ -z "$JSON_PATH" ]; then
+            echo "FAIL: json-diff-path is empty in file_output_only mode"
+            exit 1
+          fi
+          echo "PASS: json-diff-path is set"
+
+      - name: Assert raw-diff-path is set
+        env:
+          RAW_PATH: ${{ steps.action.outputs.raw-diff-path }}
+        run: |
+          echo "raw-diff-path: $RAW_PATH"
+          if [ -z "$RAW_PATH" ]; then
+            echo "FAIL: raw-diff-path is empty in file_output_only mode"
+            exit 1
+          fi
+          echo "PASS: raw-diff-path is set"
+
+      - name: Assert JSON diff file exists and contains the changed file
+        env:
+          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          echo "Checking file at: $JSON_PATH"
+          if [ ! -f "$JSON_PATH" ]; then
+            echo "FAIL: JSON diff file does not exist at $JSON_PATH"
+            exit 1
+          fi
+          if ! grep -q "file-only-test.txt" "$JSON_PATH"; then
+            echo "FAIL: JSON diff file does not contain file-only-test.txt"
+            exit 1
+          fi
+          echo "PASS: JSON diff file exists and contains expected content"
+
+      - name: Assert raw diff file exists and is non-empty
+        env:
+          RAW_PATH: ${{ steps.action.outputs.raw-diff-path }}
+        run: |
+          echo "Checking file at: $RAW_PATH"
+          if [ ! -f "$RAW_PATH" ]; then
+            echo "FAIL: raw diff file does not exist at $RAW_PATH"
+            exit 1
+          fi
+          CONTENT=$(cat "$RAW_PATH")
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: raw diff file is empty"
+            exit 1
+          fi
+          echo "PASS: raw diff file exists and has content"
+
+      - name: Assert json-diff output is NOT set (file_output_only=true)
+        env:
+          JSON_DIFF: ${{ steps.action.outputs.json-diff }}
+        run: |
+          echo "json-diff: '$JSON_DIFF'"
+          if [ -n "$JSON_DIFF" ]; then
+            echo "FAIL: json-diff should be empty when file_output_only=true"
+            exit 1
+          fi
+          echo "PASS: json-diff is empty as expected in file_output_only mode"

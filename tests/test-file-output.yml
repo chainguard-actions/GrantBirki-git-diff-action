@@ -1,0 +1,91 @@
+name: Test file output options
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git user and create a commit to diff against
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          echo "file output test content" > file-output-test.txt
+          git add file-output-test.txt
+          git commit -m "Add file-output-test.txt for diff test"
+          git log --oneline -3
+
+      - id: action
+        uses: .
+        with:
+          base_branch: HEAD^1
+          json_diff_file_output: /tmp/diff-output.json
+          raw_diff_file_output: /tmp/diff-output.raw
+
+      - name: Assert json-diff-path output is set
+        env:
+          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          echo "json-diff-path: $JSON_PATH"
+          if [ -z "$JSON_PATH" ]; then
+            echo "FAIL: json-diff-path output is empty"
+            exit 1
+          fi
+          echo "PASS: json-diff-path is set to $JSON_PATH"
+
+      - name: Assert raw-diff-path output is set
+        env:
+          RAW_PATH: ${{ steps.action.outputs.raw-diff-path }}
+        run: |
+          echo "raw-diff-path: $RAW_PATH"
+          if [ -z "$RAW_PATH" ]; then
+            echo "FAIL: raw-diff-path output is empty"
+            exit 1
+          fi
+          echo "PASS: raw-diff-path is set to $RAW_PATH"
+
+      - name: Assert JSON diff file exists and is non-empty
+        env:
+          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          echo "Checking file at: $JSON_PATH"
+          if [ ! -f "$JSON_PATH" ]; then
+            echo "FAIL: JSON diff file does not exist at $JSON_PATH"
+            exit 1
+          fi
+          CONTENT=$(cat "$JSON_PATH")
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: JSON diff file is empty"
+            exit 1
+          fi
+          echo "PASS: JSON diff file exists and has content"
+          echo "Content: $CONTENT"
+
+      - name: Assert raw diff file exists and is non-empty
+        env:
+          RAW_PATH: ${{ steps.action.outputs.raw-diff-path }}
+        run: |
+          echo "Checking file at: $RAW_PATH"
+          if [ ! -f "$RAW_PATH" ]; then
+            echo "FAIL: raw diff file does not exist at $RAW_PATH"
+            exit 1
+          fi
+          CONTENT=$(cat "$RAW_PATH")
+          if [ -z "$CONTENT" ]; then
+            echo "FAIL: raw diff file is empty"
+            exit 1
+          fi
+          echo "PASS: raw diff file exists and has content"
+
+      - name: Assert JSON diff file contains the changed file name
+        env:
+          JSON_PATH: ${{ steps.action.outputs.json-diff-path }}
+        run: |
+          if ! grep -q "file-output-test.txt" "$JSON_PATH"; then
+            echo "FAIL: JSON diff file does not mention file-output-test.txt"
+            exit 1
+          fi
+          echo "PASS: JSON diff file contains file-output-test.txt"
